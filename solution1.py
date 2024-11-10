@@ -2,6 +2,7 @@ import pandas as pd
 import sys
 from sklearn.linear_model import LinearRegression
 import numpy as np
+from joblib import Parallel, delayed
 
 # تحميل عدد الكسور العشرية المطلوبة لكل زوج من ملف coin_decimals.csv
 decimals = pd.read_csv('coin_decimals.csv').set_index('feed_name').to_dict()['decimals']
@@ -12,9 +13,9 @@ def load_initial_data(file_path, n):
     return data
 
 # وظيفة التوقع باستخدام الانحدار الخطي فقط
-def predict_price(data, feed_name):
-    # أخذ آخر 5 نقاط فقط لتسريع العمليات
-    prices = data[data['feed_name'] == feed_name][['TimeSinceStart', 'ask_price']].dropna().tail(5)
+def predict_price(data, feed_name, use_bounds=True):
+    # أخذ آخر نقطتين فقط لتسريع التجربة أثناء الاختبار
+    prices = data[data['feed_name'] == feed_name][['TimeSinceStart', 'ask_price']].dropna().tail(2)
     if len(prices) < 2:
         return None
     
@@ -73,6 +74,9 @@ def main():
     latest_data = data.copy()
     previous_bounds = {}
 
+    # جلب جميع أسماء العملات بالترتيب من ملف decimals
+    feed_names_in_order = list(decimals.keys())
+
     while True:
         try:
             m = int(input().strip())
@@ -93,36 +97,30 @@ def main():
         if new_data:
             new_df = pd.DataFrame(new_data)
             new_df.fillna(method='ffill', inplace=True)
-            latest_data = pd.concat([latest_data, new_df], ignore_index=True).tail(1000)
+            latest_data = pd.concat([latest_data, new_df], ignore_index=True).tail(500)  # تقليل الحجم لتحسين الأداء
 
-        predictions = []
-        feed_names = latest_data['feed_name'].unique()
-        for feed_name in feed_names:
-            predicted_price = predict_price(latest_data, feed_name)
-            if predicted_price is not None:
-                if feed_name in previous_bounds:
-                    lower, upper = previous_bounds[feed_name]
-                    predicted_price = max(lower, min(predicted_price, upper))
+        # استخدام التوازي لتسريع التوقعات
+        predictions = Parallel(n_jobs=-1)(delayed(predict_price)(latest_data, feed_name, use_bounds=False) for feed_name in feed_names_in_order)
+
+        # تحويل النتائج إلى الشكل المطلوب
+        formatted_predictions = []
+        for i, feed_name in enumerate(feed_names_in_order):
+            if predictions[i] is not None:
+                predicted_price = predictions[i]
                 
+                # تجاهل الحدود أثناء الاختبار لتحسين الأداء
                 rounded_price = round(predicted_price, decimals.get(feed_name, 5))
                 formatted_price = f"{rounded_price:.10f}".rstrip('0').rstrip('.')
-                predictions.append(f"{feed_name} {formatted_price}")
+                formatted_predictions.append(f"{feed_name} {formatted_price}")
 
-        # إكمال التوقعات إذا كان العدد أقل من C
-        missing_feed_names = [fn for fn in latest_data['feed_name'].unique() if not any(pred.startswith(fn) for pred in predictions)]
-        for feed_name in missing_feed_names[:c - len(predictions)]:
-            last_known_price = latest_data[latest_data['feed_name'] == feed_name]['ask_price'].dropna().values[-1] if not latest_data[latest_data['feed_name'] == feed_name]['ask_price'].dropna().empty else 1.0
-            rounded_price = round(last_known_price, decimals.get(feed_name, 5))
-            formatted_price = f"{rounded_price:.10f}".rstrip('0').rstrip('.')
-            predictions.append(f"{feed_name} {formatted_price}")
+        # التأكد من أن عدد التوقعات لا يتجاوز C
+        if len(formatted_predictions) > c:
+            formatted_predictions = formatted_predictions[:c]
 
-        if len(predictions) > c:
-            predictions = predictions[:c]
-
-        log_file.write(f"{len(predictions)}\n")
-        print(len(predictions)) 
+        log_file.write(f"{len(formatted_predictions)}\n")
+        print(len(formatted_predictions)) 
         
-        for prediction in predictions:
+        for prediction in formatted_predictions:
             log_file.write(f"{prediction}\n")
             print(prediction)
 
@@ -141,5 +139,5 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# هذا كود يجيب توقعات 10 ولكنه يفشل في رقم 48 من الدورة  787169
+# ينفذ بشكل بطيى قليلا 
+# يتوقف في المكان المعتاد ولكن التوقعات ممتازة يصل الى 10 

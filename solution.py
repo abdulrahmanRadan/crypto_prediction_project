@@ -11,10 +11,9 @@ def load_initial_data(file_path, n):
     data = pd.read_csv(file_path, nrows=n)
     return data
 
-# وظيفة التوقع باستخدام الانحدار الخطي فقط
+# وظيفة التوقع باستخدام الانحدار الخطي
 def predict_price(data, feed_name):
-    # أخذ آخر 5 نقاط فقط لتسريع العمليات
-    prices = data[data['feed_name'] == feed_name][['TimeSinceStart', 'ask_price']].dropna().tail(5)
+    prices = data[data['feed_name'] == feed_name][['TimeSinceStart', 'ask_price']].dropna().tail(10)
     if len(prices) < 2:
         return None
     
@@ -24,10 +23,7 @@ def predict_price(data, feed_name):
     model = LinearRegression()
     model.fit(X, y)
     
-    # التنبؤ عند 90 ثانية
     predicted_price = model.predict(np.array([[90]]))[0]
-    
-    # التأكد من عدم وجود سعر سلبي
     if predicted_price < 0:
         predicted_price = 0.0
     
@@ -35,7 +31,7 @@ def predict_price(data, feed_name):
 
 # التحقق من صحة وترتيب البيانات
 def parse_record(fields):
-    if len(fields) != 12:
+    if len(fields) != 12:  # التأكد من أن عدد الأعمدة يساوي 12
         return None
 
     try:
@@ -105,6 +101,7 @@ def main():
                     predicted_price = max(lower, min(predicted_price, upper))
                 
                 rounded_price = round(predicted_price, decimals.get(feed_name, 5))
+                # تحويل السعر المتنبأ به إلى صيغة عشرية محددة
                 formatted_price = f"{rounded_price:.10f}".rstrip('0').rstrip('.')
                 predictions.append(f"{feed_name} {formatted_price}")
 
@@ -116,16 +113,19 @@ def main():
             formatted_price = f"{rounded_price:.10f}".rstrip('0').rstrip('.')
             predictions.append(f"{feed_name} {formatted_price}")
 
+        # التأكد من أن عدد التوقعات مطابق لـ C
         if len(predictions) > c:
             predictions = predictions[:c]
 
+        # تسجيل عدد التوقعات في الملف وطباعة المخرجات
         log_file.write(f"{len(predictions)}\n")
-        print(len(predictions)) 
+        print(len(predictions))  # طباعة عدد التوقعات
         
         for prediction in predictions:
             log_file.write(f"{prediction}\n")
-            print(prediction)
+            print(prediction)  # طباعة التوقع
 
+        # تأكيد كتابة المخرجات على القرص
         log_file.flush()
 
         q = int(input().strip())
@@ -137,9 +137,8 @@ def main():
             upper_bound = float(fields[2])
             previous_bounds[feed_name] = (lower_bound, upper_bound)
 
+    # إغلاق ملف التسجيل
     log_file.close()
 
 if __name__ == "__main__":
     main()
-
-# هذا كود يجيب توقعات 10 ولكنه يفشل في رقم 48 من الدورة  787169
