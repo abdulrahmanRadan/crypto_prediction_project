@@ -7,7 +7,6 @@
 /scripts/utils.py
 
 #files
-new_simple.py
 solution5.py
 thebest.py
 thebest2.py
@@ -16,3 +15,5 @@ thebest4.py
 thebest5.py
 mysolution.py
 require.txt
+
+new_simple.py
