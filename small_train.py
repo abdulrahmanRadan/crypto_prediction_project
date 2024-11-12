@@ -8,7 +8,7 @@ output_file = 'data/train_200_rounds.csv'
 data = pd.read_csv(input_file, usecols=['voting_round'])
 
 # الحصول على 200 قيمة فريدة فقط من voting_round
-unique_rounds = data['voting_round'].unique()[:200]
+unique_rounds = data['voting_round'].unique()[:300]
 
 # إعادة تحميل كامل البيانات وتصفية الدورات المختارة فقط
 filtered_data = pd.read_csv(input_file)
